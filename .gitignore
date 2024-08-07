@@ -1,0 +1,9 @@
+env
+media
+Store/__pycache__
+Admin_Module/__pycache__
+Admin_Module/migrations
+db.sqlite3
+.dockerignore
+docker-compose.yml
+Dockerfile
