@@ -4,7 +4,7 @@ from .models import Client, Product, Order, TrackingDetail, Invoice, Certificate
 class ClientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Client
-        fields = ['email']
+        fields = ['company_name']
 
 class ProductSerializer(serializers.ModelSerializer):
     company = ClientSerializer(read_only=True)
@@ -16,7 +16,7 @@ class OrderSerializer(serializers.ModelSerializer):
     company = ClientSerializer(read_only=True)
     class Meta:
         model = Order
-        fields = '__all__'
+        exclude = ['status']
 
 class TrackingDetailSerializer(serializers.ModelSerializer):
     company = ClientSerializer(read_only=True)

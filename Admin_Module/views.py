@@ -1,46 +1,50 @@
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
-from rest_framework import viewsets
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail
 from .models import Client, Product, Order, TrackingDetail, Invoice, CertificateOfAnalysis, PackingMaterialInventory
-from .serializers import ClientSerializer, ProductSerializer, OrderSerializer, TrackingDetailSerializer, InvoiceSerializer, CertificateOfAnalysisSerializer, PackingMaterialInventorySerializer
+from .serializers import ProductSerializer, OrderSerializer, TrackingDetailSerializer, InvoiceSerializer, CertificateOfAnalysisSerializer, PackingMaterialInventorySerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.http import JsonResponse
 from rest_framework import status
-from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView
 from .pagination import CustomPageNumberPagination
 from django.forms.models import model_to_dict
+from django.shortcuts import get_object_or_404
 
 def get_refresh_token(user):
     token = RefreshToken.for_user(user)
     
     return {'acsess': str(token.access_token), 'refresh': str(token)}
 
-class ClientViewSet(viewsets.ModelViewSet):
-    queryset = Client.objects.all()
-    serializer_class = ClientSerializer
-    permission_classes = (IsAuthenticated, )
-
-class ProductViewSet(ListAPIView):
-    queryset = Product.objects.all()
+class ProductListing(ListAPIView):
     serializer_class = ProductSerializer
-    permission_classes = (IsAuthenticated, )
+    permission_classes = (IsAuthenticated,)
     pagination_class = CustomPageNumberPagination
 
     def get_queryset(self):
         if self.request.user.is_superuser:
             return Product.objects.all()
         return Product.objects.filter(company=self.request.user)
-    
-    def perform_create(self, serializer):
-        serializer.save(company=self.request.user)
 
-class OrderViewSet(viewsets.ModelViewSet):
-    queryset = Order.objects.all()
+    def get(self, request, pk=None, *args, **kwargs):
+        if pk:
+            product = get_object_or_404(Product, pk=pk)
+            serializer = ProductSerializer(product)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
+        else:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(queryset, many=True)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
+
+class OrderListing(ListAPIView):
     serializer_class = OrderSerializer
-    permission_classes = (IsAuthenticated, )
+    permission_classes = (IsAuthenticated,)
     pagination_class = CustomPageNumberPagination
 
     def get_queryset(self):
@@ -48,73 +52,141 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Order.objects.all()
         return Order.objects.filter(company=self.request.user)
 
-    def perform_create(self, serializer):
-        serializer.save(company=self.request.user)
+    def get(self, request, pk=None, *args, **kwargs):
+        if pk:
+            order = get_object_or_404(Order, pk=pk)
+            serializer = OrderSerializer(order)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
+        else:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
 
-    @action(detail=True, methods=['patch'], permission_classes=(IsAuthenticated, ))
-    def update_status(self, request, pk=None):
-        order = self.get_object()
-        if order.status not in ['approved', 'dispatched']:
-            order.status = request.data.get('status')
-            order.save()
-            return JsonResponse({"error": False,"statusCode": 200,"message": "order status updated"}, status=status.HTTP_200_OK)
-        return JsonResponse({'error': True, "statusCode": 422, "message": "cannot update order status"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            serializer = self.get_serializer(queryset, many=True)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
 
-class TrackingDetailViewSet(viewsets.ModelViewSet):
-    queryset = TrackingDetail.objects.all()
-    serializer_class = TrackingDetailSerializer
+class OrderAPIView(APIView):
     permission_classes = (IsAuthenticated, )
     pagination_class = CustomPageNumberPagination
+        
+    def post(self, request):
+        serializer = OrderSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(company=request.user)
+            return JsonResponse({"error": False,"statusCode": 201,"message": serializer.data}, status=status.HTTP_201_CREATED)
+        return JsonResponse({"error": True,"statusCode": 400,"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     
+    def put(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+        if order.status != 'pending':
+            return JsonResponse({"error": True,"statusCode": 400,"message": "Order status must be 'pending' to update the order."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = OrderSerializer(order, data=request.data, partial=False)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse({"error": False,"statusCode": 201,"message": serializer.data}, status=status.HTTP_201_CREATED)
+        return JsonResponse({"error": True,"statusCode": 400,"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    
+class TrackingDetailListing(ListAPIView):
+    serializer_class = TrackingDetailSerializer
+    permission_classes = (IsAuthenticated,)
+    pagination_class = CustomPageNumberPagination
+
     def get_queryset(self):
         if self.request.user.is_superuser:
             return TrackingDetail.objects.all()
         return TrackingDetail.objects.filter(company=self.request.user)
 
-    def perform_create(self, serializer):
-        serializer.save(company=self.request.user)
+    def get(self, request, pk=None, *args, **kwargs):
+        if pk:
+            trackingDetail = get_object_or_404(TrackingDetail, pk=pk)
+            serializer = TrackingDetailSerializer(trackingDetail)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
+        else:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(queryset, many=True)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
         
-class InvoiceViewSet(viewsets.ModelViewSet):
-    queryset = Invoice.objects.all()
+class InvoiceListing(ListAPIView):
     serializer_class = InvoiceSerializer
-    permission_classes = (IsAuthenticated, )
+    permission_classes = (IsAuthenticated,)
     pagination_class = CustomPageNumberPagination
 
     def get_queryset(self):
         if self.request.user.is_superuser:
             return Invoice.objects.all()
         return Invoice.objects.filter(company=self.request.user)
-    
-    def perform_create(self, serializer):
-        serializer.save(company=self.request.user)
+
+    def get(self, request, pk=None, *args, **kwargs):
+        if pk:
+            invoice = get_object_or_404(Invoice, pk=pk)
+            serializer = InvoiceSerializer(invoice)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
+        else:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(queryset, many=True)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
         
-class CertificateOfAnalysisViewSet(viewsets.ModelViewSet):
-    queryset = CertificateOfAnalysis.objects.all()
+class CertificateOfAnalysisListing(ListAPIView):
     serializer_class = CertificateOfAnalysisSerializer
-    permission_classes = (IsAuthenticated, )
+    permission_classes = (IsAuthenticated,)
     pagination_class = CustomPageNumberPagination
-    
+
     def get_queryset(self):
         if self.request.user.is_superuser:
             return CertificateOfAnalysis.objects.all()
         return CertificateOfAnalysis.objects.filter(company=self.request.user)
 
-    def perform_create(self, serializer):
-        serializer.save(company=self.request.user)
-    
-class PackingMaterialInventoryViewSet(viewsets.ModelViewSet):
-    queryset = PackingMaterialInventory.objects.all()
+    def get(self, request, pk=None, *args, **kwargs):
+        if pk:
+            certificateOfAnalysis = get_object_or_404(CertificateOfAnalysis, pk=pk)
+            serializer = CertificateOfAnalysisSerializer(certificateOfAnalysis)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
+        else:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(queryset, many=True)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
+        
+class PackingMaterialInventoryListing(ListAPIView):
     serializer_class = PackingMaterialInventorySerializer
-    permission_classes = (IsAuthenticated, )
+    permission_classes = (IsAuthenticated,)
     pagination_class = CustomPageNumberPagination
 
     def get_queryset(self):
         if self.request.user.is_superuser:
             return PackingMaterialInventory.objects.all()
         return PackingMaterialInventory.objects.filter(company=self.request.user)
-    
-    def perform_create(self, serializer):
-        serializer.save(company=self.request.user)
+
+    def get(self, request, pk=None, *args, **kwargs):
+        if pk:
+            packingMaterialInventory = get_object_or_404(PackingMaterialInventory, pk=pk)
+            serializer = PackingMaterialInventorySerializer(packingMaterialInventory)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
+        else:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(queryset, many=True)
+            return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
         
 class users_login(APIView):
     permission_classes = (AllowAny, )
@@ -177,27 +249,63 @@ class OrderDetails(APIView):
     def get(self, request, pk, *args, **kwargs):
         try:
             order = Order.objects.get(id=pk)
-            
             tracking = TrackingDetail.objects.filter(order=order).first()
             tracking_data = {
                 "DocketID": tracking.docket_no if tracking else "",
                 "Courier": tracking.courier_company if tracking else "",
-                # "pdf": tracking.pdf.url if tracking and tracking.pdf else ""
+                "pdf": tracking.pdf.url if tracking and tracking.pdf else ""
             }
             invoice = Invoice.objects.filter(order=order).first()
-            
             coa = CertificateOfAnalysis.objects.filter(order=order).first()            
             
             response_data = {
                 "orderID": order.id,
-                "name": order.product.name,  # Assuming order_number is the product name
-                "orderDate": order.created_at,  # Assuming order_date is a field in Order model
+                "name": order.product.name, 
+                "orderDate": order.created_at,
+                "weight": order.weight,
+                "packing_type": order.packing_type,
+                "cap_color": order.cap_color,
+                "biding": order.biding,
+                "mrp": order.mrp,
+                "status": order.status,
+                "quantity": order.quantity,
+                "remark": order.remark,  
                 "trackingDetails": tracking_data,
                 "invoice": invoice.pdf.url if invoice else "",
                 "coa": coa.pdf.url if coa else ""
             }
             return JsonResponse(response_data, status=status.HTTP_200_OK)
             
-            
         except Order.DoesNotExist:
-            return JsonResponse({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+            return JsonResponse({'error': True, "statusCode": 404, "message": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return JsonResponse({'error': True, "statusCode": 422, "message": "Something Went Wrong"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        
+class ClientAPIView(APIView):
+    permission_classes = (IsAuthenticated, )
+    
+    def put(self, request):
+        error = {}
+        if not request.data:
+            return JsonResponse({'error': True, "statusCode": 422, "message": "Data is required"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        if not request.data.get('email'):
+            error['email'] = "This fields is required."
+        if bool(error):
+            return JsonResponse({'error': True, "statusCode": 422, "message": "Something went wrong", 'errors': error}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+              
+        try:
+            client = Client.objects.get(email=request.data.get('email'))
+            client.company_name = request.data.get('company_name')
+            client.brand_name = request.data.get('brand_name')
+            client.name = request.data.get('name')
+            client.mobile_no = request.data.get('mobile_no')
+            client.address = request.data.get('address')
+            client.gst_no = request.data.get('gst_no')
+            client.dob = request.data.get('dob')
+            client.moa = request.data.get('moa')
+            client.save()
+            return JsonResponse({"error": False, "statusCode": 201, "message": "Client Updated"}, status=status.HTTP_201_CREATED)
+        except Client.DoesNotExist:
+            return JsonResponse({"error": True, "statusCode": 404, "message": "Email is not registered"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return JsonResponse({"error": True, "statusCode": 422, "message": "Something Went Wrong"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)

@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.contrib.auth.models import AbstractUser
 
 class Client(AbstractUser):
     username = models.CharField(unique=False, max_length=30)
@@ -61,7 +61,7 @@ class Order(models.Model):
     cap_color = models.CharField(max_length=255)
     biding = models.BooleanField(default=False)
     mrp = models.IntegerField()
-    status = models.CharField(max_length=255,choices=STATUS_CHOICES)
+    status = models.CharField(max_length=255,choices=STATUS_CHOICES, default='pending')
     quantity = models.IntegerField()
     remark = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -76,6 +76,7 @@ class TrackingDetail(models.Model):
     courier_company = models.CharField(max_length=255)
     docket_no = models.CharField(max_length=255)
     date = models.DateField()
+    pdf = models.FileField(upload_to='invoices/')
 
     def __str__(self):
         return f"Tracking {self.id} for Order {self.order.id}"
@@ -103,11 +104,11 @@ class PackingMaterialInventory(models.Model):
         ('PLASTIC', 'PLASTIC'),
     ]
     company = models.ForeignKey(Client, on_delete=models.CASCADE)
-    product_name = models.CharField(max_length=255)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
     weight = models.IntegerField()
     packing_type = models.CharField(max_length=255, choices=PACKING_CHOICES)
-    biding = models.CharField(max_length=255)
+    biding = models.BooleanField(default=False)
     quantity = models.IntegerField()
 
     def __str__(self):
-        return f"Inventory {self.id} for {self.product_name}"
+        return f"Inventory {self.id} for {self.product.name}"

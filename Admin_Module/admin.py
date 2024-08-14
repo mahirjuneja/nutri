@@ -68,7 +68,7 @@ class CertificateOfAnalysisAdmin(admin.ModelAdmin):
     search_fields = ('company__email', 'order__id')
 
 class PackingMaterialInventoryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'company', 'product_name', 'weight', 'packing_type', 'biding', 'quantity')
+    list_display = ('id', 'company', 'product', 'weight', 'packing_type', 'biding', 'quantity')
     search_fields = ('company__email', 'product_name', 'packing_type')
 
 admin.site.register(Client, ClientAdmin)
