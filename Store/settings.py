@@ -25,14 +25,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-k8zdyjdd4xj28k&x_9+b0*0$4w^k&sh66qqz9h=-+n38+((%_1'
 
 # SECURITY WARNING: don't run with debug  turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
 
 
 # Add LOGIN_REDIRECT_URL and EMAIL_BACKEND of your Django project settings.py file:
-LOGIN_REDIRECT_URL = '/'
+# LOGIN_REDIRECT_URL = '/'
 # EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
@@ -48,7 +48,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'Admin_Module',
     'rest_framework',
-    'rest_framework_simplejwt'
+    'rest_framework_simplejwt',
+    'drf_spectacular'
 ]
 
 
@@ -140,8 +141,10 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
@@ -159,6 +162,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+
     # 'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     # 'PAGE_SIZE': 5,
 }
@@ -175,4 +180,22 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
+
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'DJANGO TEST API',
+    # 'SECURITY': [
+    #     {'Bearer': []},  # Define the security scheme
+    # ],
+    # 'AUTHENTICATION': [
+    #     {'name': 'Bearer', 'type': 'http', 'scheme': 'bearer', 'bearerFormat': 'JWT'},
+    # ],
+    # 'DESCRIPTION': 'API documentation for DJANGO TEST Project',
+    # 'VERSION': '1.0.0',
+    # 'SCHEMA_PATH_PREFIX': '/admin_module/',  # Adjust if necessary
+    # 'SERVE_INCLUDE_SCHEMA': False,  # Adjust based on your needs
+    # 'COMPONENT_SPLIT_REQUEST': True,
+    # other settings
 }

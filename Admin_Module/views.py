@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail
 from .models import Client, Product, Order, TrackingDetail, Invoice, CertificateOfAnalysis, PackingMaterialInventory
-from .serializers import ProductSerializer, OrderSerializer, TrackingDetailSerializer, InvoiceSerializer, CertificateOfAnalysisSerializer, PackingMaterialInventorySerializer
+from .serializers import LoginSerializer, ForgetPasswordSerializer, ClientSerializer, ClientUpdateSerializer, ProductSerializer, OrderSerializer, TrackingDetailSerializer, InvoiceSerializer, CertificateOfAnalysisSerializer, PackingMaterialInventorySerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.http import JsonResponse
 from rest_framework import status
@@ -11,6 +11,37 @@ from rest_framework.generics import ListAPIView
 from .pagination import CustomPageNumberPagination
 from django.forms.models import model_to_dict
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
+from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import api_view, permission_classes
+
+@csrf_exempt
+def get_products_for_company(request):
+    if request.method == 'POST':
+        company_id = request.POST.get('company_id')
+        if company_id:
+            products = Product.objects.filter(company_id=company_id)
+            options = ''.join([f'<option value="{p.id}">{p.name}</option>' for p in products])
+            return HttpResponse(options)
+        else:
+            return HttpResponse('No company ID provided', status=400)
+    return HttpResponse('Invalid request method', status=400)
+
+@csrf_exempt
+def get_orders_for_company(request):
+    if request.method == 'POST':
+        company_id = request.POST.get('company_id')
+        if company_id:
+            orders = Order.objects.filter(company_id=company_id)  # Ensure correct field name
+            if not orders.exists():
+                return HttpResponse('')  # Return empty response if no orders found
+            options = ''.join([f'<option value="{p.id}">Order id {p.id} for {p.product.name}</option>' for p in orders])
+            return HttpResponse(options)
+        else:
+            return HttpResponse('No company ID provided', status=400)
+    return HttpResponse('Invalid request method', status=400)
+
 
 def get_refresh_token(user):
     token = RefreshToken.for_user(user)
@@ -67,16 +98,28 @@ class OrderListing(ListAPIView):
             serializer = self.get_serializer(queryset, many=True)
             return JsonResponse({"error": False, "statusCode": 200, "message": serializer.data}, status=status.HTTP_200_OK)
 
-class OrderAPIView(APIView):
+class OrderCreate(APIView):
     permission_classes = (IsAuthenticated, )
     pagination_class = CustomPageNumberPagination
-        
+    
+    @extend_schema(
+        request=OrderSerializer,
+    )
+    
     def post(self, request):
         serializer = OrderSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(company=request.user)
             return JsonResponse({"error": False,"statusCode": 201,"message": serializer.data}, status=status.HTTP_201_CREATED)
         return JsonResponse({"error": True,"statusCode": 400,"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    
+class OrderUpdate(APIView):
+    permission_classes = (IsAuthenticated, )
+    pagination_class = CustomPageNumberPagination
+    
+    @extend_schema(
+        request=OrderSerializer,
+    )
     
     def put(self, request, pk):
         order = get_object_or_404(Order, pk=pk)
@@ -190,37 +233,41 @@ class PackingMaterialInventoryListing(ListAPIView):
         
 class users_login(APIView):
     permission_classes = (AllowAny, )
+
+    @extend_schema(
+        request=LoginSerializer,
+        responses={200: 'Login successful'},
+    )
+    
     def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return JsonResponse({'error': True,"statusCode": 422,"message": "Something went wrong",'errors': serializer.errors}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+        email = serializer.validated_data['email']
+        password = serializer.validated_data['password']
+        
         try:
-            error = {}
-            if not request.data:
-                return JsonResponse({'error': True, "statusCode": 422, "message": "Data is required"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-            if not request.data.get('email'):
-                error['email'] = "This fields is required."
-            if not request.data.get('password'):
-                error['password'] = "This fields is required."
-            if bool(error):
-                return JsonResponse({'error': True, "statusCode": 422, "message": "Something went wrong", 'errors': error}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-                
-            email = request.data['email']
-            password = request.data['password']
-            
-            try:
-                user = Client.objects.get(email=email)
-                if user.check_password(password):
-                    access_token = get_refresh_token(user)
-                    user_data = model_to_dict(user, exclude=['password', 'is_superuser', 'is_staff', 'is_active', 'groups', 'user_permissions'])
-                    return JsonResponse({"error": False,"statusCode": 200,"message": "Successfully Login","data": user_data , 'token': access_token})
-                else:
-                    return JsonResponse({"error": True, "statusCode": 422, "message": "password is wrong"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-            except Client.DoesNotExist:
-                return JsonResponse({"error": True, "statusCode": 422, "message": "email is not registered"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            user = Client.objects.get(email=email)
+            if user.check_password(password):
+                access_token = get_refresh_token(user)
+                user_data = model_to_dict(user, exclude=['password', 'is_superuser', 'is_staff', 'is_active', 'groups', 'user_permissions'])
+                return JsonResponse({"error": False,"statusCode": 200,"message": "Successfully Login","data": user_data,'token': access_token})
+            else:
+                return JsonResponse({"error": True,"statusCode": 422,"message": "Password is wrong"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        except Client.DoesNotExist:
+            return JsonResponse({"error": True,"statusCode": 422,"message": "Email is not registered"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         except Exception as e:
-            return JsonResponse({"error": True, "statusCode": 422, "message": "Something Went Wrong"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return JsonResponse({"error": True,"statusCode": 422,"message": "Something Went Wrong"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
 class ForgotPasswordView(APIView):
     permission_classes = (AllowAny, )
 
+    @extend_schema(
+        request=ForgetPasswordSerializer,
+    )
+    
     def post(self, request):
         error = {}
         if not request.data:
@@ -245,10 +292,11 @@ class ForgotPasswordView(APIView):
 
 class OrderDetails(APIView):
     permission_classes = (IsAuthenticated, )
+    pagination_class = CustomPageNumberPagination
     
     def get(self, request, pk, *args, **kwargs):
         try:
-            order = Order.objects.get(id=pk)
+            order = Order.objects.get(company=self.request.user, id=pk)
             tracking = TrackingDetail.objects.filter(order=order).first()
             tracking_data = {
                 "DocketID": tracking.docket_no if tracking else "",
@@ -283,6 +331,11 @@ class OrderDetails(APIView):
         
 class ClientAPIView(APIView):
     permission_classes = (IsAuthenticated, )
+    pagination_class = CustomPageNumberPagination
+    
+    @extend_schema(
+        request=ClientUpdateSerializer,
+    )
     
     def put(self, request):
         error = {}

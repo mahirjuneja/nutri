@@ -1,5 +1,19 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
+from PyPDF2 import PdfReader
+from io import BytesIO
+
+def validate_pdf(value):
+    
+    if value.name[-4:] != '.pdf':
+        raise ValidationError('Uploaded file is not a valid PDF.')
+    try:
+        pdf = PdfReader(BytesIO(value.read()))
+        if len(pdf.pages) == 0:
+            raise ValidationError('Uploaded file is not a valid PDF.')
+    except Exception as e:
+        raise ValidationError('Uploaded file is not a valid PDF.')
 
 class Client(AbstractUser):
     username = models.CharField(unique=False, max_length=30)
@@ -76,7 +90,7 @@ class TrackingDetail(models.Model):
     courier_company = models.CharField(max_length=255)
     docket_no = models.CharField(max_length=255)
     date = models.DateField()
-    pdf = models.FileField(upload_to='invoices/')
+    pdf = models.FileField(upload_to='trackingDetail/', validators=[validate_pdf])
 
     def __str__(self):
         return f"Tracking {self.id} for Order {self.order.id}"
@@ -84,7 +98,7 @@ class TrackingDetail(models.Model):
 class Invoice(models.Model):
     company = models.ForeignKey(Client, on_delete=models.CASCADE)
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
-    pdf = models.FileField(upload_to='invoices/')
+    pdf = models.FileField(upload_to='invoices/', validators=[validate_pdf])
 
     def __str__(self):
         return f"Invoice {self.id} for Order {self.order.id}"
@@ -92,7 +106,7 @@ class Invoice(models.Model):
 class CertificateOfAnalysis(models.Model):
     company = models.ForeignKey(Client, on_delete=models.CASCADE)
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
-    pdf = models.FileField(upload_to='certificates/')
+    pdf = models.FileField(upload_to='certificates/', validators=[validate_pdf])
 
     def __str__(self):
         return f"Certificate {self.id} for Order {self.order.id}"

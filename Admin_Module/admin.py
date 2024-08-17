@@ -3,35 +3,6 @@ from .models import Client, Product, Order, TrackingDetail, Invoice, Certificate
 from django.utils.translation import gettext_lazy as _
 
 
-# class CustomAdminSite(admin.AdminSite):
-#     def get_app_list(self, request):
-#         app_list = super().get_app_list(request)
-#         for app in app_list:
-#             if app['app_label'] == 'Admin_Module':  # Replace with your actual app label
-#                 models = app['models']
-#                 # Define the desired order
-#                 desired_order = [
-#                     'Client',
-#                     'Product',
-#                     'Order',
-#                     'TrackingDetail',
-#                     'CertificateOfAnalysis',
-#                     'Invoice',
-#                     'PackingMaterialInventory'
-#                 ]
-#                 # Create a dictionary of models
-#                 model_dict = {m['object_name']: m for m in models}
-#                 # Create a new ordered list of models
-#                 ordered_models = []
-#                 for model_name in desired_order:
-#                     if model_name in model_dict:
-#                         ordered_models.append(model_dict[model_name])
-#                 # Replace the original models list with the ordered one
-#                 app['models'] = ordered_models
-#         return app_list
-
-# custom_admin_site = CustomAdminSite(name='custom_admin')
-
 class ClientAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
@@ -54,22 +25,38 @@ class ProductAdmin(admin.ModelAdmin):
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'company', 'product', 'weight', 'packing_type', 'cap_color', 'biding', 'mrp', 'status', 'quantity')
     search_fields = ('company__email', 'product__name', 'status')
+    
+    class Media:
+        js = ('admin/js/dynamic_products.js',)
+    
 
 class TrackingDetailAdmin(admin.ModelAdmin):
     list_display = ('id', 'company', 'order', 'courier_company', 'docket_no', 'date')
     search_fields = ('company__email', 'order__id', 'courier_company', 'docket_no')
+    
+    class Media:
+        js = ('admin/js/dynamic_orders.js',)
 
 class InvoiceAdmin(admin.ModelAdmin):
     list_display = ('id', 'company', 'order', 'pdf')
     search_fields = ('company__email', 'order__id')
+    
+    class Media:
+        js = ('admin/js/dynamic_orders.js',)
 
 class CertificateOfAnalysisAdmin(admin.ModelAdmin):
     list_display = ('id', 'company', 'order', 'pdf')
     search_fields = ('company__email', 'order__id')
+    
+    class Media:
+        js = ('admin/js/dynamic_orders.js',)
 
 class PackingMaterialInventoryAdmin(admin.ModelAdmin):
     list_display = ('id', 'company', 'product', 'weight', 'packing_type', 'biding', 'quantity')
     search_fields = ('company__email', 'product_name', 'packing_type')
+    
+    class Media:
+        js = ('admin/js/dynamic_products.js',)
 
 admin.site.register(Client, ClientAdmin)
 admin.site.register(Product, ProductAdmin)
